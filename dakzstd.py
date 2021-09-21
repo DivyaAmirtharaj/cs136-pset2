@@ -7,6 +7,7 @@
 # probably get rid of the silly logging messages, and then add more logic.
 
 #Reference client (5.3.1) - rarest-first, reciprocation, and optimistic unchoking
+# peers.sort - rarest first
 
 import random
 import logging
@@ -53,15 +54,46 @@ class DakzStd(Peer):
         # Sort peers by id.  This is probably not a useful sort, but other 
         # sorts might be useful
         peers.sort(key=lambda p: p.id)
+
+        # To-do: once peers are sorted based on piece rarity we should 
+        # request the rarest piece from the first peer, then the second
+        # rarest piece from the first peer, then the second rarest 
+        # from the next, etc., 
+        # first we will make a dictionary to identify
+        # the rarest piece, 
+        # then we will sort the pieces by rarity, 
+        # then we will change the piece-requesting strategy to get the rarest first
+
+        for peer in peers:
+            # set of available pieces for this peer
+            av_set = set(peer.available_pieces)
+            # dict of available blocks for download based on what peers have
+            # check the length for a block, and the shortest length is the 
+            # rarest length (fewest number of clients have it)
+            piece_dict = {}
+            for piece in av_set:
+                if piece in piece_dict:
+                    piece_dict[piece].append(peer.id)
+                else:
+                    piece_dict[piece] = [peer.id]
+        print(piece_dict)
+        rarest_order = sorted(piece_dict.values(), key=len)
+        print(rarest_order)
+
         # request all available pieces from all peers!
         # (up to self.max_requests from each)
         for peer in peers:
+            # set of available pieces for this peer
             av_set = set(peer.available_pieces)
+            # intersection of what this peer needs (np_set), and what other
+            # peers have (av_set)
             isect = av_set.intersection(np_set)
             n = min(self.max_requests, len(isect))
             # More symmetry breaking -- ask for random pieces.
             # This would be the place to try fancier piece-requesting strategies
             # to avoid getting the same thing from multiple peers at a time.
+            # To-do: implement rarest first
+
             for piece_id in random.sample(isect, n):
                 # aha! The peer has this piece! Request it.
                 # which part of the piece do we need next?
@@ -69,7 +101,7 @@ class DakzStd(Peer):
                 start_block = self.pieces[piece_id]
                 r = Request(self.id, peer.id, piece_id, start_block)
                 requests.append(r)
-
+        print(requests)
         return requests
 
     def uploads(self, requests, peers, history):
@@ -82,7 +114,6 @@ class DakzStd(Peer):
 
         In each round, this will be called after requests().
         """
-
         round = history.current_round()
         logging.debug("%s again.  It's round %d." % (
             self.id, round))
