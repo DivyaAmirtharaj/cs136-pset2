@@ -6,6 +6,8 @@
 # You'll want to copy this file to AgentNameXXX.py for various versions of XXX,
 # probably get rid of the silly logging messages, and then add more logic.
 
+#Reference client (5.3.1) - rarest-first, reciprocation, and optimistic unchoking
+
 import random
 import logging
 
