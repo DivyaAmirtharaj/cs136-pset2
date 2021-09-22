@@ -55,29 +55,21 @@ class DakzStd(Peer):
         # sorts might be useful
         peers.sort(key=lambda p: p.id)
 
-        # To-do: once peers are sorted based on piece rarity we should 
-        # request the rarest piece from the first peer, then the second
-        # rarest piece from the first peer, then the second rarest 
-        # from the next, etc., 
-        # first we will make a dictionary to identify
-        # the rarest piece, 
-        # then we will sort the pieces by rarity, 
-        # then we will change the piece-requesting strategy to get the rarest first
+        # To-do:
+        # 1. Sort the pieces by rarity, identify which peers have which pieces
+        # 2. For the first round, randomly choose a Seed Peer to get the rarest piece from
+        # 3. After the first round, request the rarest piece from the peer with the fastest upload
 
+        # Sorted list of the rarest pieces and the peers that have them
+        piece_dict = {}
         for peer in peers:
-            # set of available pieces for this peer
             av_set = set(peer.available_pieces)
-            # dict of available blocks for download based on what peers have
-            # check the length for a block, and the shortest length is the 
-            # rarest length (fewest number of clients have it)
-            piece_dict = {}
             for piece in av_set:
-                if piece in piece_dict:
-                    piece_dict[piece].append(peer.id)
-                else:
-                    piece_dict[piece] = [peer.id]
-        print(piece_dict)
-        rarest_order = sorted(piece_dict.values(), key=len)
+                piece_dict.setdefault(piece, [])
+                piece_dict[piece].append(peer.id)
+        rarest_order = []
+        for k in sorted(piece_dict, key=lambda k: len(piece_dict[k]), reverse=True):
+            rarest_order.append((k, piece_dict[k]))
         print(rarest_order)
 
         # request all available pieces from all peers!
