@@ -92,6 +92,7 @@ class DakzPropShare(Peer):
         uploads = []
         download_blocks = {}
 
+        # find the history for downloads that this agent made from other agents in the last round
         if round != 0:
             prev_history = history.downloads[round - 1]
             for d in prev_history:
@@ -115,24 +116,31 @@ class DakzPropShare(Peer):
             # change my internal state for no reason
             self.dummy_state["cake"] = "pie"
 
+            # get all the ids for those requesting pieces
             requesters = [r.requester_id for r in requests]
 
+            # peers that are in the request list who you also just downloaded from
             peers_to_upload = []
 
             for r in requesters:
                 if r in download_blocks.keys():
                     peers_to_upload.append(r)
             
+            # calculate total # of blocks processed
             tot_blocks = 0
 
             for p in peers_to_upload:
                 tot_blocks += download_blocks[p]
         
+            # calculate the share for each peer that will be uploaded to
+            # remove it from the requesters list when the request has been processed
             for p in peers_to_upload:
                 fraction = (1 - bw_opt_share) * ((1.0 * download_blocks[p]) / (tot_blocks))
                 uploads.append(Upload(self.id, p, int(fraction * cap)))
                 requesters.remove(p)
             
+            # add one last upload that is randomly chosen from the remaining requester ids
+            # and gets the remaining share
             if len(requesters) > 0:
                 last_req =  random.choice(requesters)
                 uploads.append(Upload(self.id, last_req, int(bw_opt_share * cap)))
