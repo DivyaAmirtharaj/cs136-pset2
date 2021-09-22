@@ -47,13 +47,7 @@ class DakzStd(Peer):
         logging.debug("look at the AgentHistory class in history.py for details")
         logging.debug(str(history))
 
-        requests = []   # We'll put all the things we want here
-        # Symmetry breaking is good...
-        random.shuffle(needed_pieces)
-        
-        # Sort peers by id.  This is probably not a useful sort, but other 
-        # sorts might be useful
-        peers.sort(key=lambda p: p.id)
+        requests = []
 
         # To-do:
         # 1. Sort the pieces by rarity, identify which peers have which pieces
@@ -67,32 +61,44 @@ class DakzStd(Peer):
             for piece in av_set:
                 piece_dict.setdefault(piece, [])
                 piece_dict[piece].append(peer.id)
+        avail_set = set(piece_dict.keys())
+        # Rarest order is a list of tuples with the rarest pieces first
+        # and the peers that have the corresponding piece
         rarest_order = []
         for k in sorted(piece_dict, key=lambda k: len(piece_dict[k]), reverse=True):
             rarest_order.append((k, piece_dict[k]))
         print(rarest_order)
 
-        # request all available pieces from all peers!
-        # (up to self.max_requests from each)
-        for peer in peers:
-            # set of available pieces for this peer
-            av_set = set(peer.available_pieces)
-            # intersection of what this peer needs (np_set), and what other
-            # peers have (av_set)
-            isect = av_set.intersection(np_set)
-            n = min(self.max_requests, len(isect))
-            # More symmetry breaking -- ask for random pieces.
-            # This would be the place to try fancier piece-requesting strategies
-            # to avoid getting the same thing from multiple peers at a time.
-            # To-do: implement rarest first
+        
+        ''' for peer in peers:
+            print("peer", peer)
+            # Set of the intersection of pieces required, and the pieces peers have available
+            isect = np_set.intersection(avail_set)
+            
+            # If the current round is 0, choose the rarest piece (if it is in isect)
+            # then randomly choose a seed to download from
+            if history.current_round() == 0:
+                for item in rarest_order:
+                    if item[0] in isect:
+                        req_peer = random.choice(item[1])
+                        print("piece to download", item[0])
+                        print("from", req_peer)
+            else:
+                for item in rarest_order:
+                    if item[0] in isect:
+                        # choose the peer from item[1] that has the fastest upload rate
+                        ...
+        '''
 
-            for piece_id in random.sample(isect, n):
-                # aha! The peer has this piece! Request it.
-                # which part of the piece do we need next?
-                # (must get the next-needed blocks in order)
-                start_block = self.pieces[piece_id]
-                r = Request(self.id, peer.id, piece_id, start_block)
-                requests.append(r)
+        for peer in peers:
+            isect = np_set.intersection(avail_set)
+            for item in rarest_order:
+                    if item[0] in isect:
+                        req_peer = random.choice(item[1])
+                        start_block = self.pieces[item[0]]
+                        r = Request(self.id, req_peer, item[0], start_block)
+                        print("request", r)
+                        requests.append(r)
         print(requests)
         return requests
 
@@ -113,6 +119,13 @@ class DakzStd(Peer):
         # For example, history.downloads[round-1] (if round != 0, of course)
         # has a list of Download objects for each Download to this peer in
         # the previous round.
+
+        # To-do:
+        # 1. Upload to the k-1 people each turn (k=4 and leave one slot open to unchoke)
+        # 2. Round 0: Choose k-1 people at random since there is no download history
+        # 3. Post-Round 0 we choose the k-1 people we downloaded the most pieces from
+        # 4. Rounds that are multiples of 3, we choose a peer at random that is not in the k-1
+        #    to optimistically unchoke
 
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
