@@ -103,7 +103,7 @@ class DakzTyrant(Peer):
 
             if round == 0:
                 for p in peers:
-                    uploads.append(Upload(self.id, peer.id, self.up_bw / (len(peers) - 1)))
+                    uploads.append(Upload(self.id, p.id, self.up_bw / (len(peers) - 1)))
 
             gamma = 0.1
             r = 3
