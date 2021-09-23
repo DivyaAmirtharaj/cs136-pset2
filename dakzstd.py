@@ -70,12 +70,16 @@ class DakzStd(Peer):
         
         isect = np_set.intersection(avail_set)
         # in order of piece rarity, request the piece from all players that have it
+        print("rarest order", rarest_order)
         for item in rarest_order:
             if item[0] in isect:
                 start_block = self.pieces[item[0]]
-                for req_peer in item[1]:
+                while len(item[1]) != 0:
+                    req_peer = random.choice(item[1])
                     r = Request(self.id, req_peer, item[0], start_block)
+                    item[1].remove(req_peer)
                     requests.append(r)
+                    print("newly random!", r)
         return requests
 
     def uploads(self, requests, peers, history):
@@ -103,13 +107,9 @@ class DakzStd(Peer):
 
         for request in requests:
             requester_id_list.append(request.requester_id)
+        random.shuffle(requester_id_list)
+        print("shuffled list", requester_id_list)
 
-        '''if round % 3 == 0 and round != 0:
-            if len(requester_id_list) != 0:
-                opt_unchoke = random.choice(requester_id_list)
-                self.dummy_state["unchoke"] = opt_unchoke
-                print("unchoke", self.dummy_state["unchoke"])'''
-        
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
 
