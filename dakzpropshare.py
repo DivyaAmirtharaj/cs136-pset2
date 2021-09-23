@@ -67,7 +67,7 @@ class DakzPropShare(Peer):
                 start_block = self.pieces[piece_id]
                 r = Request(self.id, peer.id, piece_id, start_block)
                 requests.append(r)
-
+        print(requests)
         return requests
 
     def uploads(self, requests, peers, history):
@@ -89,24 +89,6 @@ class DakzPropShare(Peer):
         # has a list of Download objects for each Download to this peer in
         # the previous round.
 
-        uploads = []
-        download_blocks = {}
-
-        # find the history for downloads that this agent made from other agents in the last round
-        if round != 0:
-            prev_history = history.downloads[round - 1]
-            for d in prev_history:
-                if d.to_id == self.id:
-                    p = d.from_id
-                    if p not in download_blocks:
-                        download_blocks[p] = d.blocks
-                    else:
-                        download_blocks[p] += d.blocks
-
-        # share of bandwidth afforded to a random requester
-        bw_opt_share = 0.1
-        cap = self.up_bw
-
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
             chosen = []
@@ -116,37 +98,6 @@ class DakzPropShare(Peer):
             # change my internal state for no reason
             self.dummy_state["cake"] = "pie"
 
-            # get all the ids for those requesting pieces
-            requesters = [r.requester_id for r in requests]
-
-            # peers that are in the request list who you also just downloaded from
-            peers_to_upload = []
-
-            for r in requesters:
-                if r in download_blocks.keys():
-                    peers_to_upload.append(r)
-            
-            # calculate total # of blocks processed
-            tot_blocks = 0
-
-            for p in peers_to_upload:
-                tot_blocks += download_blocks[p]
-        
-            # calculate the share for each peer that will be uploaded to
-            # remove it from the requesters list when the request has been processed
-            for p in peers_to_upload:
-                fraction = (1 - bw_opt_share) * ((1.0 * download_blocks[p]) / (tot_blocks))
-                uploads.append(Upload(self.id, p, int(fraction * cap)))
-                requesters.remove(p)
-            
-            # add one last upload that is randomly chosen from the remaining requester ids
-            # and gets the remaining share
-            if len(requesters) > 0:
-                last_req =  random.choice(requesters)
-                uploads.append(Upload(self.id, last_req, int(bw_opt_share * cap)))
-
-
-        '''
             request = random.choice(requests)
             chosen = [request.requester_id]
             # Evenly "split" my upload bandwidth among the one chosen requester
@@ -155,6 +106,5 @@ class DakzPropShare(Peer):
         # create actual uploads out of the list of peer ids and bandwidths
         uploads = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]
-        '''
             
         return uploads

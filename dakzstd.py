@@ -65,40 +65,19 @@ class DakzStd(Peer):
         # Rarest order is a list of tuples with the rarest pieces first
         # and the peers that have the corresponding piece
         rarest_order = []
-        for k in sorted(piece_dict, key=lambda k: len(piece_dict[k]), reverse=True):
+        for k in sorted(piece_dict, key=lambda k: len(piece_dict[k]), reverse=False):
             rarest_order.append((k, piece_dict[k]))
         print(rarest_order)
-
         
-        ''' for peer in peers:
-            print("peer", peer)
-            # Set of the intersection of pieces required, and the pieces peers have available
-            isect = np_set.intersection(avail_set)
-            
-            # If the current round is 0, choose the rarest piece (if it is in isect)
-            # then randomly choose a seed to download from
-            if history.current_round() == 0:
-                for item in rarest_order:
-                    if item[0] in isect:
-                        req_peer = random.choice(item[1])
-                        print("piece to download", item[0])
-                        print("from", req_peer)
-            else:
-                for item in rarest_order:
-                    if item[0] in isect:
-                        # choose the peer from item[1] that has the fastest upload rate
-                        ...
-        '''
-
-        for peer in peers:
-            isect = np_set.intersection(avail_set)
-            for item in rarest_order:
-                    if item[0] in isect:
-                        req_peer = random.choice(item[1])
-                        start_block = self.pieces[item[0]]
-                        r = Request(self.id, req_peer, item[0], start_block)
-                        print("request", r)
-                        requests.append(r)
+        isect = np_set.intersection(avail_set)
+        # in order of piece rarity, request the piece from all players that have it
+        for item in rarest_order:
+            if item[0] in isect:
+                start_block = self.pieces[item[0]]
+                for req_peer in item[1]:
+                    r = Request(self.id, req_peer, item[0], start_block)
+                    print("request", r)
+                    requests.append(r)
         print(requests)
         return requests
 
