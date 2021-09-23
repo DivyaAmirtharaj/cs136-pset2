@@ -103,7 +103,7 @@ class DakzTyrant(Peer):
 
             if round == 0:
                 for p in peers:
-                    uploads.append(Upload(self.id, p.id, self.up_bw / (len(peers) - 1)))
+                    uploads.append(Upload(self.id, p.id, self.up_bw / 4.0))
 
             gamma = 0.1
             r = 3
@@ -137,8 +137,6 @@ class DakzTyrant(Peer):
 
                 for p in peers:
                     if p.id in download_blocks.keys():
-                        # download speed
-                        dij = download_blocks[p.id]
                         unchoked_three_rounds = True
 
                         if round >= 3:
@@ -157,20 +155,25 @@ class DakzTyrant(Peer):
                                 if not unchoked_this_round:
                                     unchoked_three_rounds = False
                                     break
-                        
+                            print("unchoked_three_rounds: " + str(unchoked_three_rounds))
+
                         if p.id in upload_bws.keys():
                             # if i (self) did upload to j 
                             # use the previous upload speed as a baseline
                             uij = upload_bws[p.id]
+                            print("did upload previously")
+                            print(uij)
                         else:
                             # if i (self) did not upload to j
                             # default is the average of the upload bandwidth for i over all j
-                            uij = self.up_bw / (len(peers) - 1)
+                            uij = self.up_bw / 4.0
                         
                         # if peer j unchoked i (downloaded from j to i) these last 3 rounds
                         # set the upload bandwidth to 1 - gamma * what it is now
                         if unchoked_three_rounds:
                             uij = (1.0 - gamma) * uij
+                            print("unchoked every 3 rounds")
+                            print(uij)
                         
                         # peer j unchoked peer i during the last round, so set
                         # download speed to the calculated speed
@@ -186,27 +189,29 @@ class DakzTyrant(Peer):
                             # if i (self) did upload to j but didn't receive a download
                             # increase the upload bandwidth from what it was last
                             uij = (1 + alpha) * uij
+                            print("increase bandwidth")
                         else:
                             # otherwise, keep the average as a baseline
-                            uij = self.up_bw / (len(peers) - 1)
+                            uij = self.up_bw / 4.0
 
                         speed_dict[p.id] = [dij, uij]
 
                 all_ids = list(speed_dict.keys())
-                all_uploads = [vals[1] for vals in list(speed_dict.values())]
+                print(speed_dict.values())
+                all_uploads = [val[1] for val in list(speed_dict.values())]
                 all_speeds = [1.0 * vals[0] / vals[1] for vals in list(speed_dict.values())]               
                 zipped_lists = zip(all_speeds, all_ids, all_uploads)
                 sorted_triples  = sorted(zipped_lists, reverse=True)
                 ranked_tuples = zip(*sorted_triples)
                 all_speeds, all_ids, all_uploads = [ list(tuple) for tuple in ranked_tuples]
                 print(all_uploads)
+                print(all_speeds)
 
                 cap = self.up_bw
                 ind = 0
                 print(all_ids)
 
                 while cap > 0:
-                    print(cap)
                     if ind < len(all_ids) and all_ids[ind] in request_ids:
                         print(all_ids[ind])
                         if cap - all_uploads[ind] > 0:
@@ -215,9 +220,8 @@ class DakzTyrant(Peer):
                     elif ind >= len(all_ids):
                         break
                     ind += 1
-                    print("index: " + str(ind))
                 
-
+            print(uploads)
 
             print(request_ids)
 

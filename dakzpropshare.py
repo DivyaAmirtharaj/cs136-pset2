@@ -133,13 +133,13 @@ class DakzPropShare(Peer):
 
             for p in peers_to_upload:
                 fraction = (1 - bw_opt_share) * ((1.0 * download_blocks[p]) / (tot_blocks))
-                print(fraction * cap)
+                print("share " + str(fraction * cap))
                 uploads.append(Upload(self.id, p, int(fraction * cap)))
                 requesters.remove(p)
 
             if len(requesters) > 0:
                 last_req =  random.choice(requesters)
-                print(bw_opt_share * cap)
+                print("share " + str(bw_opt_share * cap))
                 uploads.append(Upload(self.id, last_req, int(bw_opt_share * cap)))
 
             '''
