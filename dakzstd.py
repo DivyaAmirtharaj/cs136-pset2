@@ -91,28 +91,20 @@ class DakzStd(Peer):
 
         In each round, this will be called after requests().
         """
+        
         round = history.current_round()
         logging.debug("%s again.  It's round %d." % (
             self.id, round))
-        # One could look at other stuff in the history too here.
-        # For example, history.downloads[round-1] (if round != 0, of course)
-        # has a list of Download objects for each Download to this peer in
-        # the previous round.
-        
-        ''''# if there are between 1-3 requests, upload to all requests (even_split)
-        elif 1 <= len(requests) <= 3:
-            for request in requests:
-                print("request for upload", request) 
-        '''
         
         # if there are more than 3 requests, look at the history for previous two rounds
         # and order peers based on number of pieces you downloaded from them (more takes priority)
-        # unchoke the top 3
+        # and upload to them, if there aren't 3 in the history, choose the remainder at random
         # if the round is a multiple of 3, unchoke a random 4th peer
         requester_id_list = []
         uploads = []
 
         for request in requests:
+            print("these are requests", request)
             requester_id_list.append(request.requester_id)
         print("Requestee list", requester_id_list)
 
@@ -124,7 +116,7 @@ class DakzStd(Peer):
         else:
             if 1 <= len(requests) <= 3:
                 for request in requests:
-                    uploads.append(Upload(self.id, request.requester_id, (self.up_bw)/4))
+                    uploads.append(Upload(self.id, request.requester_id, self.up_bw/4))
                     print("upload all since fewer than 3")
             else:
                 print("need history")
@@ -140,11 +132,12 @@ class DakzStd(Peer):
                     else: 
                         down_dict[hist2.from_id] = hist2.blocks
                 sorted_down_dict = dict(sorted(down_dict.items(), key=lambda item: item[1], reverse=True))
-
+                
+                bws = even_split(self.up_bw, 4)
                 uploaded = 0
                 for requester in sorted_down_dict:
                     if requester in requester_id_list:
-                        uploads.append(Upload(self.id, requester, (self.up_bw)/4))
+                        uploads.append(Upload(self.id, requester, bws[uploaded]))
                         requester_id_list.remove(requester)
                         print("history based upload")
                         uploaded += 1
@@ -152,7 +145,7 @@ class DakzStd(Peer):
                         break
                 while uploaded < 3:
                     rand_req = random.choice(requester_id_list)
-                    uploads.append(Upload(self.id, rand_req, (self.up_bw)/4))
+                    uploads.append(Upload(self.id, rand_req, bws[uploaded]))
                     requester_id_list.remove(rand_req)
                     print("random upload")
                     uploaded += 1
@@ -160,15 +153,6 @@ class DakzStd(Peer):
             # change my internal state for no reason
             self.dummy_state["cake"] = "pie"
 
-            request = random.choice(requests)
-            chosen = [request.requester_id]
-            # Evenly "split" my upload bandwidth among the one chosen requester
-            bws = even_split(self.up_bw, len(chosen))
+            
         print("divya's uploads", uploads)
-        # create actual uploads out of the list of peer ids and bandwidths
-        upload_given = [Upload(self.id, peer_id, bw)
-                   for (peer_id, bw) in zip(chosen, bws)]
-        print("what are these stupid uploads", upload_given)
-        
-        #print("my uploads", uploads)
         return uploads
