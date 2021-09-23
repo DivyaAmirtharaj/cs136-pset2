@@ -17,6 +17,10 @@ class DakzTyrant(Peer):
     def post_init(self):
         print(("post_init(): %s here!" % self.id))
         self.dummy_state = dict()
+        self.dij = dict()
+        self.uij = dict()
+        self.rates = dict()
+        self.unchoked_me = dict()
     
     def requests(self, peers, history):
         """
@@ -69,7 +73,6 @@ class DakzTyrant(Peer):
                     r = Request(self.id, req_peer, item[0], start_block)
                     item[1].remove(req_peer)
                     requests.append(r)
-                    print("newly random!", r)
         return requests
 
     def uploads(self, requests, peers, history):
@@ -94,6 +97,14 @@ class DakzTyrant(Peer):
         uploads = []
         request_ids = [r.requester_id for r in requests]
 
+        if round == 0:
+            for j in peers:
+                self.uij[j.id] = self.up_bw / 4
+                self.dij[j.id] = len(j.available_pieces) / 4
+                self.unchoked_me[j.id] = 0
+        i_unchoked = []
+        upload_bws = []
+
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
             chosen = []
@@ -103,13 +114,29 @@ class DakzTyrant(Peer):
             # change my internal state for no reason
             self.dummy_state["cake"] = "pie"
 
-            if round == 0:
-                for p in peers:
-                    uploads.append(Upload(self.id, p.id, self.up_bw / 4.0))
-
             gamma = 0.1
             r = 3
             alpha = 0.2
+            
+            for j in peers:
+                self.rates[j.id] = self.dij[j.id] / self.uij[j.id]
+            
+            cap = self.up_bw
+
+            while cap > 0 and len(self.rates) > 0:
+                max_rate = max(list(self.rates.values()))
+                max_ids = []
+                for id in self.rates:
+                    if self.rates[id] == max_rate:
+                        max_ids.append(id)
+                to_upload = random.choice(max_ids)
+                
+                if cap - self.uij[to_upload] > 0 and to_upload in request_ids:
+                    i_unchoked.append(to_upload)
+                    upload_bws.append(self.uij[to_upload])
+                    cap -= self.uij[to_upload]
+
+                self.rates.pop(to_upload)
 
             if round != 0:
                 prev_down_history = history.downloads[round - 1]
@@ -118,127 +145,32 @@ class DakzTyrant(Peer):
                 # finding the number of blocks i (self) downloaded from j
                 for d in prev_down_history:
                     if d.to_id == self.id:
-                        d_id = d.from_id
-                        if d_id not in download_blocks:
-                            download_blocks[d_id] = d.blocks
+                        j_id = d.from_id
+                        if j_id not in download_blocks:
+                            download_blocks[j_id] = d.blocks
                         else:
-                            download_blocks[d_id] += d.blocks
-                
-                prev_up_history = history.uploads[round - 1]
-                upload_bws = {}
-                # finding the amount that i (self) uploaded to j
-                for u in prev_up_history:
-                    if u.from_id == self.id:
-                        u_id = u.to_id
-                        if u_id not in upload_bws:
-                            upload_bws[u_id] = u.bw
-                        else:
-                            upload_bws[u_id] += u.bw
-                
-                speed_dict = {}
-
-                for p in peers:
-                    if p.id in download_blocks.keys():
-                        unchoked_three_rounds = True
-
-                        if round >= 3:
-                            # only need to check the last two rounds because 
-                            # if p.id is in the previous download history
-                            # then i (self) must have downloaded from j (p.id)
-                            for i in range(1, 3):
-                                unchoked_this_round = False
-                                next_down_history = history.downloads[round - i - 1]
-                                for d in next_down_history:
-                                    d_from = d.from_id
-                                    if d_from == p.id:
-                                        unchoked_this_round = True
-                                        break
-                                
-                                if not unchoked_this_round:
-                                    unchoked_three_rounds = False
-                                    break
-                            print("unchoked_three_rounds: " + str(unchoked_three_rounds))
-
-                        if p.id in upload_bws.keys():
-                            # if i (self) did upload to j 
-                            # use the previous upload speed as a baseline
-                            uij = upload_bws[p.id]
-                            print("did upload previously")
-                            print(uij)
-                        else:
-                            # if i (self) did not upload to j
-                            # default is the average of the upload bandwidth for i over all j
-                            uij = self.up_bw / 4.0
-                        
-                        # if peer j unchoked i (downloaded from j to i) these last 3 rounds
-                        # set the upload bandwidth to 1 - gamma * what it is now
-                        if unchoked_three_rounds:
-                            uij = (1.0 - gamma) * uij
-                            print("unchoked every 3 rounds")
-                            print(uij)
-                        
-                        # peer j unchoked peer i during the last round, so set
-                        # download speed to the calculated speed
-                        speed_dict[p.id] = [dij, uij]
+                            download_blocks[j_id] += d.blocks
+        
+                for j in peers:
+                    if j.id in download_blocks:
+                        self.unchoked_me[j.id] += 1
                     else:
-                        # if peer j did not unchoke peer i at all (peer i did not download from peer j)
-                        # first, we need to estimate the download speed as
-                        # the number of pieces j has / 4 (from textbook 5.12)
+                        self.unchoked_me[j.id] = 0
+            
+            for j in i_unchoked:
+                if round > 0:
+                    if self.unchoked_me[j] == 0:
+                        self.uij[j] = self.uij[j] * (1 + alpha)
+                        for p in peers:
+                            if p.id == j:
+                                self.dij[j] = len(p.available_pieces) / 4
+                    else:
+                        self.dij[j] = download_blocks[j]
 
-                        dij = len(p.available_pieces) / 4.0
+                        if self.unchoked_me[j] >= r:
+                            self.uij[j] = self.uij[j] * (1 - gamma)
 
-                        if p in upload_bws.keys():
-                            # if i (self) did upload to j but didn't receive a download
-                            # increase the upload bandwidth from what it was last
-                            uij = (1 + alpha) * uij
-                            print("increase bandwidth")
-                        else:
-                            # otherwise, keep the average as a baseline
-                            uij = self.up_bw / 4.0
-
-                        speed_dict[p.id] = [dij, uij]
-
-                all_ids = list(speed_dict.keys())
-                print(speed_dict.values())
-                all_uploads = [val[1] for val in list(speed_dict.values())]
-                all_speeds = [1.0 * vals[0] / vals[1] for vals in list(speed_dict.values())]               
-                zipped_lists = zip(all_speeds, all_ids, all_uploads)
-                sorted_triples  = sorted(zipped_lists, reverse=True)
-                ranked_tuples = zip(*sorted_triples)
-                all_speeds, all_ids, all_uploads = [ list(tuple) for tuple in ranked_tuples]
-                print(all_uploads)
-                print(all_speeds)
-
-                cap = self.up_bw
-                ind = 0
-                print(all_ids)
-
-                while cap > 0:
-                    if ind < len(all_ids) and all_ids[ind] in request_ids:
-                        print(all_ids[ind])
-                        if cap - all_uploads[ind] > 0:
-                            uploads.append(Upload(self.id, all_ids[ind], all_uploads[ind]))
-                        cap -= all_uploads[ind]
-                    elif ind >= len(all_ids):
-                        break
-                    ind += 1
-                
-            print(uploads)
-
-            print(request_ids)
-
-
-            '''
-
-            request = random.choice(requests)
-            chosen = [request.requester_id]
-            # Evenly "split" my upload bandwidth among the one chosen requester
-            bws = even_split(self.up_bw, len(chosen))
-
-        # create actual uploads out of the list of peer ids and bandwidths
-        uploads = [Upload(self.id, peer_id, bw)
-                   for (peer_id, bw) in zip(chosen, bws)]
-        '''
-        print("uploads: " + str(uploads))
+        for i in range(len(i_unchoked)):
+            uploads.append(Upload(self.id, i_unchoked[i], upload_bws[i]))
             
         return uploads
