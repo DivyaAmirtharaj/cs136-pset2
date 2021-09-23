@@ -98,20 +98,65 @@ class DakzStd(Peer):
         # For example, history.downloads[round-1] (if round != 0, of course)
         # has a list of Download objects for each Download to this peer in
         # the previous round.
+        
+        ''''# if there are between 1-3 requests, upload to all requests (even_split)
+        elif 1 <= len(requests) <= 3:
+            for request in requests:
+                print("request for upload", request) 
+        '''
+        
+        # if there are more than 3 requests, look at the history for previous two rounds
+        # and order peers based on number of pieces you downloaded from them (more takes priority)
+        # unchoke the top 3
+        # if the round is a multiple of 3, unchoke a random 4th peer
+        requester_id_list = []
+        uploads = []
 
-        # To-do:
-        # 1. Upload to the k-1 people each turn (k=4 and leave one slot open to unchoke)
-        # 2. Round 0: Choose k-1 people at random since there is no download history
-        # 3. Post-Round 0 we choose the k-1 people we downloaded the most pieces from
-        # 4. Rounds that are multiples of 3, we choose a peer at random that is not in the k-1
-        #    to optimistically unchoke
+        for request in requests:
+            requester_id_list.append(request.requester_id)
+        print("Requestee list", requester_id_list)
 
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
             chosen = []
             bws = []
+
         else:
-            logging.debug("Still here: uploading to a random peer")
+            if 1 <= len(requests) <= 3:
+                for request in requests:
+                    uploads.append(Upload(self.id, request.requester_id, (self.up_bw)/4))
+                    print("upload all since fewer than 3")
+            else:
+                print("need history")
+                down_dict = {}
+                for hist1 in history.downloads[round-1]:
+                    if hist1.from_id in down_dict:
+                        down_dict[hist1.from_id] += hist1.blocks
+                    else: 
+                        down_dict[hist1.from_id] = hist1.blocks
+                for hist2 in history.downloads[round-2]:
+                    if hist2.from_id in down_dict:
+                        down_dict[hist2.from_id] += hist2.blocks
+                    else: 
+                        down_dict[hist2.from_id] = hist2.blocks
+                sorted_down_dict = dict(sorted(down_dict.items(), key=lambda item: item[1], reverse=True))
+
+                uploaded = 0
+                for requester in sorted_down_dict:
+                    if requester in requester_id_list:
+                        uploads.append(Upload(self.id, requester, (self.up_bw)/4))
+                        requester_id_list.remove(requester)
+                        print("history based upload")
+                        uploaded += 1
+                    if uploaded == 3:
+                        break
+                while uploaded < 3:
+                    rand_req = random.choice(requester_id_list)
+                    uploads.append(Upload(self.id, rand_req, (self.up_bw)/4))
+                    requester_id_list.remove(rand_req)
+                    print("random upload")
+                    uploaded += 1
+                    
             # change my internal state for no reason
             self.dummy_state["cake"] = "pie"
 
@@ -119,9 +164,11 @@ class DakzStd(Peer):
             chosen = [request.requester_id]
             # Evenly "split" my upload bandwidth among the one chosen requester
             bws = even_split(self.up_bw, len(chosen))
-
+        print("divya's uploads", uploads)
         # create actual uploads out of the list of peer ids and bandwidths
-        uploads = [Upload(self.id, peer_id, bw)
+        upload_given = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]
-            
+        print("what are these stupid uploads", upload_given)
+        
+        #print("my uploads", uploads)
         return uploads
