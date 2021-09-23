@@ -49,11 +49,6 @@ class DakzStd(Peer):
 
         requests = []
 
-        # To-do:
-        # 1. Sort the pieces by rarity, identify which peers have which pieces
-        # 2. For the first round, randomly choose a Seed Peer to get the rarest piece from
-        # 3. After the first round, request the rarest piece from the peer with the fastest upload
-
         # Sorted list of the rarest pieces and the peers that have them
         piece_dict = {}
         for peer in peers:
@@ -70,7 +65,6 @@ class DakzStd(Peer):
         
         isect = np_set.intersection(avail_set)
         # in order of piece rarity, request the piece from all players that have it
-        print("rarest order", rarest_order)
         for item in rarest_order:
             if item[0] in isect:
                 start_block = self.pieces[item[0]]

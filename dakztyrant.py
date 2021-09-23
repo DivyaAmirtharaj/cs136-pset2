@@ -17,7 +17,6 @@ class DakzTyrant(Peer):
     def post_init(self):
         print(("post_init(): %s here!" % self.id))
         self.dummy_state = dict()
-        self.dummy_state["cake"] = "lie"
     
     def requests(self, peers, history):
         """
@@ -44,30 +43,33 @@ class DakzTyrant(Peer):
         logging.debug("look at the AgentHistory class in history.py for details")
         logging.debug(str(history))
 
-        requests = []   # We'll put all the things we want here
-        # Symmetry breaking is good...
-        random.shuffle(needed_pieces)
-        
-        # Sort peers by id.  This is probably not a useful sort, but other 
-        # sorts might be useful
-        peers.sort(key=lambda p: p.id)
-        # request all available pieces from all peers!
-        # (up to self.max_requests from each)
+        requests = []
+
+        # Sorted list of the rarest pieces and the peers that have them
+        piece_dict = {}
         for peer in peers:
             av_set = set(peer.available_pieces)
-            isect = av_set.intersection(np_set)
-            n = min(self.max_requests, len(isect))
-            # More symmetry breaking -- ask for random pieces.
-            # This would be the place to try fancier piece-requesting strategies
-            # to avoid getting the same thing from multiple peers at a time.
-            for piece_id in random.sample(isect, n):
-                # aha! The peer has this piece! Request it.
-                # which part of the piece do we need next?
-                # (must get the next-needed blocks in order)
-                start_block = self.pieces[piece_id]
-                r = Request(self.id, peer.id, piece_id, start_block)
-                requests.append(r)
-
+            for piece in av_set:
+                piece_dict.setdefault(piece, [])
+                piece_dict[piece].append(peer.id)
+        avail_set = set(piece_dict.keys())
+        # Rarest order is a list of tuples with the rarest pieces first
+        # and the peers that have the corresponding piece
+        rarest_order = []
+        for k in sorted(piece_dict, key=lambda k: len(piece_dict[k]), reverse=False):
+            rarest_order.append((k, piece_dict[k]))
+        
+        isect = np_set.intersection(avail_set)
+        # in order of piece rarity, request the piece from all players that have it
+        for item in rarest_order:
+            if item[0] in isect:
+                start_block = self.pieces[item[0]]
+                while len(item[1]) != 0:
+                    req_peer = random.choice(item[1])
+                    r = Request(self.id, req_peer, item[0], start_block)
+                    item[1].remove(req_peer)
+                    requests.append(r)
+                    print("newly random!", r)
         return requests
 
     def uploads(self, requests, peers, history):
