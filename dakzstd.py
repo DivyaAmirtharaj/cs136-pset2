@@ -16,11 +16,11 @@ from messages import Upload, Request
 from util import even_split
 from peer import Peer
 
+
 class DakzStd(Peer):
     def post_init(self):
         print(("post_init(): %s here!" % self.id))
         self.dummy_state = dict()
-        self.dummy_state["cake"] = "lie"
     
     def requests(self, peers, history):
         """
@@ -67,7 +67,6 @@ class DakzStd(Peer):
         rarest_order = []
         for k in sorted(piece_dict, key=lambda k: len(piece_dict[k]), reverse=False):
             rarest_order.append((k, piece_dict[k]))
-        print(rarest_order)
         
         isect = np_set.intersection(avail_set)
         # in order of piece rarity, request the piece from all players that have it
@@ -76,9 +75,7 @@ class DakzStd(Peer):
                 start_block = self.pieces[item[0]]
                 for req_peer in item[1]:
                     r = Request(self.id, req_peer, item[0], start_block)
-                    print("request", r)
                     requests.append(r)
-        print(requests)
         return requests
 
     def uploads(self, requests, peers, history):
@@ -91,7 +88,7 @@ class DakzStd(Peer):
 
         In each round, this will be called after requests().
         """
-        
+
         round = history.current_round()
         logging.debug("%s again.  It's round %d." % (
             self.id, round))
@@ -102,24 +99,26 @@ class DakzStd(Peer):
         # if the round is a multiple of 3, unchoke a random 4th peer
         requester_id_list = []
         uploads = []
+        #self.dummy_state["unchoke"] = ""
 
         for request in requests:
-            print("these are requests", request)
             requester_id_list.append(request.requester_id)
-        print("Requestee list", requester_id_list)
 
+        '''if round % 3 == 0 and round != 0:
+            if len(requester_id_list) != 0:
+                opt_unchoke = random.choice(requester_id_list)
+                self.dummy_state["unchoke"] = opt_unchoke
+                print("unchoke", self.dummy_state["unchoke"])'''
+        
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
-            chosen = []
-            bws = []
 
         else:
             if 1 <= len(requests) <= 3:
-                for request in requests:
-                    uploads.append(Upload(self.id, request.requester_id, self.up_bw/4))
-                    print("upload all since fewer than 3")
+                bw_short = even_split(self.up_bw, len(requests))
+                for i, request in enumerate(requests):
+                    uploads.append(Upload(self.id, request.requester_id, bw_short[i]))
             else:
-                print("need history")
                 down_dict = {}
                 for hist1 in history.downloads[round-1]:
                     if hist1.from_id in down_dict:
@@ -139,7 +138,6 @@ class DakzStd(Peer):
                     if requester in requester_id_list:
                         uploads.append(Upload(self.id, requester, bws[uploaded]))
                         requester_id_list.remove(requester)
-                        print("history based upload")
                         uploaded += 1
                     if uploaded == 3:
                         break
@@ -147,12 +145,13 @@ class DakzStd(Peer):
                     rand_req = random.choice(requester_id_list)
                     uploads.append(Upload(self.id, rand_req, bws[uploaded]))
                     requester_id_list.remove(rand_req)
-                    print("random upload")
                     uploaded += 1
-                    
-            # change my internal state for no reason
-            self.dummy_state["cake"] = "pie"
-
-            
-        print("divya's uploads", uploads)
+                
+                if round % 3 == 0 and round != 0:
+                    if len(requester_id_list) != 0:
+                        opt_unchoke = random.choice(requester_id_list)
+                        self.dummy_state["unchoke"] = opt_unchoke
+                if round >= 3 and ("unchoke" in self.dummy_state) and (self.dummy_state["unchoke"] in requester_id_list):
+                    uploads.append(Upload(self.id, self.dummy_state["unchoke"], bws[3]))                        
+                
         return uploads
