@@ -91,22 +91,57 @@ class DakzTourney(Peer):
         # has a list of Download objects for each Download to this peer in
         # the previous round.
 
+        requester_id_list = []
+        uploads = []
+        #self.dummy_state["unchoke"] = ""
+
+        for request in requests:
+            requester_id_list.append(request.requester_id)
+        random.shuffle(requester_id_list)
+        print("shuffled list", requester_id_list)
+
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
-            chosen = []
-            bws = []
+
         else:
-            logging.debug("Still here: uploading to a random peer")
-            # change my internal state for no reason
-            self.dummy_state["cake"] = "pie"
-
-            request = random.choice(requests)
-            chosen = [request.requester_id]
-            # Evenly "split" my upload bandwidth among the one chosen requester
-            bws = even_split(self.up_bw, len(chosen))
-
-        # create actual uploads out of the list of peer ids and bandwidths
-        uploads = [Upload(self.id, peer_id, bw)
-                   for (peer_id, bw) in zip(chosen, bws)]
-            
+            if 1 <= len(requests) <= 3:
+                bw_short = even_split(self.up_bw, len(requests))
+                for i, request in enumerate(requests):
+                    uploads.append(Upload(self.id, request.requester_id, bw_short[i]))
+            else:
+                down_dict = {}
+                for hist1 in history.downloads[round-1]:
+                    if hist1.from_id in down_dict:
+                        down_dict[hist1.from_id] += hist1.blocks
+                    else: 
+                        down_dict[hist1.from_id] = hist1.blocks
+                for hist2 in history.downloads[round-2]:
+                    if hist2.from_id in down_dict:
+                        down_dict[hist2.from_id] += hist2.blocks
+                    else: 
+                        down_dict[hist2.from_id] = hist2.blocks
+                sorted_down_dict = dict(sorted(down_dict.items(), key=lambda item: item[1], reverse=True))
+                
+                bws = even_split(self.up_bw, 4)
+                uploaded = 0
+                for requester in sorted_down_dict:
+                    if requester in requester_id_list:
+                        uploads.append(Upload(self.id, requester, bws[uploaded]))
+                        requester_id_list.remove(requester)
+                        uploaded += 1
+                    if uploaded == 3:
+                        break
+                while uploaded < 3:
+                    rand_req = random.choice(requester_id_list)
+                    uploads.append(Upload(self.id, rand_req, bws[uploaded]))
+                    requester_id_list.remove(rand_req)
+                    uploaded += 1
+                
+                if round % 1 == 0 and round != 0:
+                    if len(requester_id_list) != 0:
+                        opt_unchoke = random.choice(requester_id_list)
+                        self.dummy_state["unchoke"] = opt_unchoke
+                if round >= 1 and ("unchoke" in self.dummy_state) and (self.dummy_state["unchoke"] in requester_id_list):
+                    uploads.append(Upload(self.id, self.dummy_state["unchoke"], bws[3]))                        
+                
         return uploads
