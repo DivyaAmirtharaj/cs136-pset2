@@ -90,6 +90,7 @@ class DakzTyrant(Peer):
         # the previous round.
 
         uploads = []
+        request_ids = [r.requester_id for r in requests]
 
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
@@ -202,19 +203,23 @@ class DakzTyrant(Peer):
 
                 cap = self.up_bw
                 ind = 0
+                print(all_ids)
 
                 while cap > 0:
-                    if ind < len(all_ids):
+                    print(cap)
+                    if ind < len(all_ids) and all_ids[ind] in request_ids:
+                        print(all_ids[ind])
                         if cap - all_uploads[ind] > 0:
                             uploads.append(Upload(self.id, all_ids[ind], all_uploads[ind]))
                         cap -= all_uploads[ind]
-                        ind += 1
-                    else:
+                    elif ind >= len(all_ids):
                         break
+                    ind += 1
+                    print("index: " + str(ind))
                 
 
 
-
+            print(request_ids)
 
 
             '''
@@ -228,5 +233,6 @@ class DakzTyrant(Peer):
         uploads = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]
         '''
+        print("uploads: " + str(uploads))
             
         return uploads
