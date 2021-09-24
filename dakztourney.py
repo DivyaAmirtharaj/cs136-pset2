@@ -69,7 +69,6 @@ class DakzTourney(Peer):
                     r = Request(self.id, req_peer, item[0], start_block)
                     item[1].remove(req_peer)
                     requests.append(r)
-                    print("newly random!", r)
         return requests
 
     def uploads(self, requests, peers, history):
@@ -98,7 +97,6 @@ class DakzTourney(Peer):
         for request in requests:
             requester_id_list.append(request.requester_id)
         random.shuffle(requester_id_list)
-        print("shuffled list", requester_id_list)
 
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")

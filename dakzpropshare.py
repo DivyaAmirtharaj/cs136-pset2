@@ -67,7 +67,6 @@ class DakzPropShare(Peer):
                 start_block = self.pieces[piece_id]
                 r = Request(self.id, peer.id, piece_id, start_block)
                 requests.append(r)
-        print(requests)
         return requests
 
     def uploads(self, requests, peers, history):
@@ -133,13 +132,11 @@ class DakzPropShare(Peer):
 
             for p in peers_to_upload:
                 fraction = (1 - bw_opt_share) * ((1.0 * download_blocks[p]) / (tot_blocks))
-                print("share " + str(fraction * cap))
                 uploads.append(Upload(self.id, p, int(fraction * cap)))
                 requesters.remove(p)
 
             if len(requesters) > 0:
                 last_req =  random.choice(requesters)
-                print("share " + str(bw_opt_share * cap))
                 uploads.append(Upload(self.id, last_req, int(bw_opt_share * cap)))
 
             '''
@@ -154,6 +151,5 @@ class DakzPropShare(Peer):
         # create actual uploads out of the list of peer ids and bandwidths
         uploads = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]'''
-        print("uploads: " + str(uploads))
             
         return uploads
