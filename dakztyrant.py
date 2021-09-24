@@ -151,25 +151,34 @@ class DakzTyrant(Peer):
                         else:
                             download_blocks[j_id] += d.blocks
         
+                # counting which peers unchoked me in the last round
                 for j in peers:
                     if j.id in download_blocks:
                         self.unchoked_me[j.id] += 1
                     else:
                         self.unchoked_me[j.id] = 0
             
+            # only update the peers that i unchoked this past round
             for j in i_unchoked:
                 if round > 0:
+                    # if the peer didn't unchoke me, i need to increase my bandwidth
                     if self.unchoked_me[j] == 0:
                         self.uij[j] = self.uij[j] * (1 + alpha)
+
+                        # update download speed according to section 5.4.3
                         for p in peers:
                             if p.id == j:
                                 self.dij[j] = len(p.available_pieces) / 4
                     else:
+                        # if the peer did unchoke me, then i can use the download speed
+                        # from this past round
                         self.dij[j] = download_blocks[j]
 
+                        # if it unchoked me for more than 3 rounds, decrease the bandwidth
                         if self.unchoked_me[j] >= r:
                             self.uij[j] = self.uij[j] * (1 - gamma)
 
+        # use the bandwidths calculated above
         for i in range(len(i_unchoked)):
             uploads.append(Upload(self.id, i_unchoked[i], upload_bws[i]))
             
